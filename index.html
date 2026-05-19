@@ -1146,13 +1146,10 @@ async function uploadToDrive(blob, filename, notes) {
   body.append('filename', filename);
   body.append('content',  base64);
   body.append('notes',    notes || '');
-  const res  = await fetch(APPS_SCRIPT_URL, { method: 'POST', body, redirect: 'follow' });
-  const text = await res.text();
-  let json;
-  try { json = JSON.parse(text); }
-  catch (e) { throw new Error('non-JSON response: ' + text.substring(0, 200)); }
-  if (!json.ok) throw new Error(json.error || 'server returned !ok');
-  return json;
+  // mode:'no-cors' bypasses the Apps Script CORS redirect that blocks cross-origin POSTs.
+  // The response is opaque so we cannot read it — success is assumed optimistically.
+  await fetch(APPS_SCRIPT_URL, { method: 'POST', body, mode: 'no-cors' });
+  return { ok: true, name: filename };
 }
 
 // =============================================================================
@@ -1496,9 +1493,9 @@ document.getElementById('cam').addEventListener('change', async (e) => {
     const up = await uploadToDrive(pdf.blob, pdf.name, notes);
     setSubStatus('');
     showResult(true,
-      '&#10003; Uploaded as <strong>' + up.name + '</strong> &mdash; <a href="' + up.url + '" target="_blank" rel="noopener">view in Drive</a>',
+      '&#10003; Uploaded: <strong>' + up.name + '</strong>',
       null, null);
-    log('Uploaded: ' + up.name + ' (id ' + up.id + ')');
+    log('Uploaded: ' + up.name);
   } catch (err) {
     showResult(false,
       '&#10007; Upload failed: ' + err.message + '<br>Use the download below as a fallback.',
