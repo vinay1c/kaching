@@ -1141,15 +1141,35 @@ async function blobToBase64(blob) {
 
 async function uploadToDrive(blob, filename, notes) {
   const base64 = await blobToBase64(blob);
-  const body   = new URLSearchParams();
-  body.append('secret',   SHARED_SECRET);
-  body.append('filename', filename);
-  body.append('content',  base64);
-  body.append('notes',    notes || '');
-  // mode:'no-cors' bypasses the Apps Script CORS redirect that blocks cross-origin POSTs.
-  // The response is opaque so we cannot read it — success is assumed optimistically.
-  await fetch(APPS_SCRIPT_URL, { method: 'POST', body, mode: 'no-cors' });
-  return { ok: true, name: filename };
+  // Use a hidden form POST targeting an iframe — HTML form submissions are not
+  // subject to CORS restrictions, so this reaches Apps Script regardless of origin.
+  // The iframe response is cross-origin (opaque), so success is assumed optimistically.
+  return new Promise((resolve, reject) => {
+    const TIMEOUT_MS = 45000;
+    let settled = false;
+
+    const iframe = document.getElementById('uploadTarget');
+    const form   = document.getElementById('uploadForm');
+
+    const timer = setTimeout(() => {
+      if (!settled) { settled = true; reject(new Error('upload timed out after 45 s')); }
+    }, TIMEOUT_MS);
+
+    iframe.onload = function() {
+      if (!settled) {
+        settled = true;
+        clearTimeout(timer);
+        resolve({ ok: true, name: filename });
+      }
+    };
+
+    form.action = APPS_SCRIPT_URL;
+    document.getElementById('formSecret').value   = SHARED_SECRET;
+    document.getElementById('formFilename').value = filename;
+    document.getElementById('formContent').value  = base64;
+    document.getElementById('formNotes').value    = notes || '';
+    form.submit();
+  });
 }
 
 // =============================================================================
@@ -1529,5 +1549,14 @@ checkReminder();
 showPane('idlePane');
 if (!isConfigured()) log('Apps Script not configured — upload will be skipped.');
 </script>
+
+<!-- Hidden form + iframe for cross-origin upload (bypasses CORS) -->
+<iframe id="uploadTarget" name="uploadTarget" style="display:none"></iframe>
+<form id="uploadForm" method="POST" target="uploadTarget" style="display:none">
+  <input type="hidden" name="secret"   id="formSecret">
+  <input type="hidden" name="filename" id="formFilename">
+  <input type="hidden" name="content"  id="formContent">
+  <input type="hidden" name="notes"    id="formNotes">
+</form>
 </body>
 </html>
