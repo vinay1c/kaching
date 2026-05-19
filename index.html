@@ -1,0 +1,1536 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="theme-color" content="#214074">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="KaChing">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<!-- manifest injected dynamically by JS below so it can reuse APPS_SCRIPT_URL -->
+<title>KaChing</title>
+<style>
+  *, *::before, *::after { box-sizing: border-box; }
+
+  /* Brand palette
+     Navy  : #214074
+     Olive : #a1b954
+     Black : #12100b  */
+
+  body {
+    font-family: -apple-system, system-ui, sans-serif;
+    margin: 0; padding: 0;
+    max-width: 480px;
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    background: #f7f8fa;
+    color: #12100b;
+  }
+
+  /* ── Security reminder banner ── */
+  #reminder {
+    display: none;
+    background: #fef3c7; border-bottom: 2px solid #f59e0b;
+    padding: 14px 16px; font-size: 0.88rem; line-height: 1.5;
+  }
+  #reminder h2 { margin: 0 0 8px; font-size: 1rem; color: #92400e; }
+  #reminder ol { margin: 8px 0 8px 20px; padding: 0; }
+  #reminder li { margin-bottom: 4px; }
+  #reminder a  { color: #92400e; }
+  #reminder button {
+    margin-top: 8px; padding: 10px 16px; font-size: 0.9rem;
+    background: #92400e; color: #fff; border: 0; border-radius: 6px; cursor: pointer;
+  }
+
+  /* ── Header ── */
+  header {
+    position: relative;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 10px 16px;
+    background: #fff;
+    border-bottom: 1px solid #e2e6ea;
+  }
+
+  #logoWrap {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    flex: 1;
+  }
+  #logoWrap svg {
+    height: 36px;
+    width: auto;
+    flex-shrink: 0;
+  }
+  #appTitle {
+    font-size: 1rem;
+    font-weight: 700;
+    color: #214074;
+    letter-spacing: 0.01em;
+    white-space: nowrap;
+  }
+
+  #hamburgerBtn {
+    font-size: 1.6rem;
+    cursor: pointer;
+    padding: 4px 8px;
+    color: #214074;
+    user-select: none;
+    background: none;
+    border: none;
+    line-height: 1;
+    flex-shrink: 0;
+  }
+
+  #dropdown {
+    display: none;
+    position: absolute;
+    top: calc(100% + 4px);
+    right: 16px;
+    background: #fff;
+    border: 1px solid #e2e6ea;
+    border-radius: 10px;
+    box-shadow: 0 4px 16px rgba(33,64,116,0.13);
+    min-width: 210px;
+    z-index: 200;
+    overflow: hidden;
+  }
+  #dropdown.open { display: block; }
+  #dropdown button {
+    display: block; width: 100%;
+    padding: 13px 18px; text-align: left;
+    background: none; border: none; border-bottom: 1px solid #f3f4f6;
+    font-size: 0.95rem; color: #12100b; cursor: pointer;
+  }
+  #dropdown button:last-child { border-bottom: none; }
+  #dropdown button:hover { background: #f0f4f8; }
+
+  /* ── Main pane ── */
+  main {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 40px 20px 28px;
+  }
+
+  /* ── State 0: Idle ── */
+  #idlePane { width: 100%; text-align: center; }
+
+  .btn-capture {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 88%;
+    aspect-ratio: 1 / 1;
+    font-size: 1.35rem;
+    font-weight: 700;
+    background: #214074;
+    color: #fff;
+    border: 0;
+    border-radius: 20px;
+    cursor: pointer;
+    text-align: center;
+    letter-spacing: 0.01em;
+    box-shadow: 0 4px 16px rgba(33,64,116,0.30);
+    transition: background 0.15s, box-shadow 0.15s;
+    text-decoration: none;
+    margin: 0 auto;
+  }
+  .btn-capture:active { background: #172f56; box-shadow: none; }
+  input[type=file] { display: none; }
+
+  /* ── State 1: Processing ── */
+  #processingPane {
+    display: none;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 20px;
+    text-align: center;
+  }
+
+  .spinner {
+    width: 56px; height: 56px;
+    border: 5px solid #dce8d4;
+    border-top-color: #a1b954;
+    border-radius: 50%;
+    animation: spin 0.85s linear infinite;
+    margin-bottom: 20px;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  #processingPane h2 {
+    margin: 0 0 8px;
+    font-size: 1.4rem;
+    color: #214074;
+  }
+  #processingSubStatus {
+    font-size: 0.88rem;
+    color: #6b7280;
+    min-height: 1.2em;
+  }
+
+  /* ── State 2: Result ── */
+  #resultPane {
+    display: none;
+    flex-direction: column;
+    align-items: center;
+    text-align: center;
+    width: 100%;
+    gap: 16px;
+  }
+
+  #resultMsg {
+    padding: 16px;
+    border-radius: 10px;
+    font-size: 0.95rem;
+    line-height: 1.5;
+    width: 100%;
+  }
+  #resultMsg.ok  { background: #f2f6e8; border: 1px solid #a1b954; color: #3a4a1a; }
+  #resultMsg.err { background: #fef2f2; border: 1px solid #fca5a5; color: #991b1b; }
+  #resultMsg a   { color: inherit; font-weight: 700; }
+
+  .btn-secondary {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 88%;
+    aspect-ratio: 1 / 1;
+    margin: 0 auto;
+    font-size: 1.35rem;
+    font-weight: 700;
+    background: #214074;
+    color: #fff;
+    border: 0;
+    border-radius: 20px;
+    cursor: pointer;
+    box-shadow: 0 4px 16px rgba(33,64,116,0.30);
+    transition: background 0.15s, box-shadow 0.15s;
+  }
+  .btn-secondary:active { background: #172f56; box-shadow: none; }
+
+  .btn-download {
+    display: inline-block; padding: 12px 20px; font-size: 0.95rem;
+    background: #f3f4f6; color: #374151; border: 1px solid #d1d5db;
+    border-radius: 10px; cursor: pointer; text-decoration: none; font-weight: 500;
+  }
+
+  /* ── Log panel ── */
+  #logPanel {
+    display: none;
+    border-top: 1px solid #e2e6ea;
+    padding: 14px 16px 20px;
+    background: #fff;
+  }
+  #logPanel h3 {
+    margin: 0 0 10px; font-size: 0.95rem; color: #214074;
+  }
+  #info, #log {
+    font-family: ui-monospace, Menlo, monospace; font-size: 0.78rem;
+    background: #f3f4f6; padding: 10px; border-radius: 6px;
+    white-space: pre-wrap; margin-bottom: 10px;
+    color: #374151;
+  }
+
+  /* ══════════════════════════════════════════════════════
+     CROP MODAL — full-screen overlay
+     ══════════════════════════════════════════════════════ */
+  #cropModal {
+    display: none;
+    position: fixed;
+    inset: 0;
+    z-index: 999;
+    background: #000;
+    flex-direction: column;
+  }
+  #cropModal.open { display: flex; }
+
+  #cropInstructions {
+    flex-shrink: 0;
+    background: rgba(0,0,0,0.75);
+    color: #e8efd8;
+    font-size: 0.88rem;
+    line-height: 1.45;
+    padding: 12px 16px;
+    text-align: center;
+    border-bottom: 1px solid rgba(161,185,84,0.3);
+  }
+  #cropInstructions strong {
+    display: block;
+    font-size: 0.98rem;
+    color: #fff;
+    margin-bottom: 3px;
+  }
+
+  #cropCanvas {
+    flex: 1;
+    display: block;
+    width: 100%;
+    touch-action: none;
+    user-select: none;
+    -webkit-user-select: none;
+    background: #111;
+    align-self: stretch;
+    min-height: 0;
+  }
+
+  #cropButtons {
+    flex-shrink: 0;
+    display: flex;
+    gap: 10px;
+    padding: 14px 16px;
+    background: rgba(0,0,0,0.82);
+    border-top: 1px solid rgba(161,185,84,0.3);
+  }
+  #cropButtons button {
+    flex: 1;
+    padding: 15px;
+    font-size: 1rem;
+    font-weight: 600;
+    border: 0;
+    border-radius: 12px;
+    cursor: pointer;
+  }
+  #confirmCornersBtn { background: #a1b954; color: #12100b; }
+  #confirmCornersBtn:active { background: #8aa044; }
+  #confirmCornersBtn:disabled { background: #4b5563; color: #9ca3af; cursor: not-allowed; }
+  #resetCornersBtn { background: #374151; color: #e5e7eb; }
+  #resetCornersBtn:active { background: #1f2937; }
+
+  /* Handwriting declaration row (inside crop modal) */
+  #hwCheckArea {
+    flex-shrink: 0;
+    padding: 12px 16px;
+    background: rgba(0,0,0,0.82);
+    border-top: 1px solid rgba(161,185,84,0.18);
+    display: flex;
+    align-items: center;
+  }
+  #hwCheckLabel {
+    display: flex;
+    align-items: center;
+    gap: 11px;
+    color: #e8efd8;
+    font-size: 0.93rem;
+    cursor: pointer;
+    user-select: none;
+    line-height: 1.3;
+  }
+  #hwCheck {
+    width: 22px; height: 22px;
+    accent-color: #a1b954;
+    cursor: pointer;
+    flex-shrink: 0;
+  }
+
+  /* ══════════════════════════════════════════════════════
+     LAST TRANSACTION MODAL
+     ══════════════════════════════════════════════════════ */
+  #lastTxModal {
+    display: none;
+    position: fixed;
+    inset: 0;
+    z-index: 998;
+    background: rgba(33,64,116,0.55);
+    align-items: center;
+    justify-content: center;
+    padding: 20px;
+  }
+  #lastTxModal.open { display: flex; }
+
+  #lastTxCard {
+    background: #fff;
+    border-radius: 16px;
+    width: 100%;
+    max-width: 420px;
+    box-shadow: 0 8px 32px rgba(33,64,116,0.22);
+    overflow: hidden;
+  }
+
+  #lastTxCardHeader {
+    background: #214074;
+    color: #fff;
+    padding: 14px 18px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+  }
+  #lastTxCardHeader h2 {
+    margin: 0;
+    font-size: 1rem;
+    font-weight: 600;
+    letter-spacing: 0.02em;
+  }
+  #lastTxCloseBtn {
+    background: none;
+    border: none;
+    color: #fff;
+    font-size: 1.4rem;
+    cursor: pointer;
+    line-height: 1;
+    padding: 0 4px;
+    opacity: 0.8;
+  }
+  #lastTxCloseBtn:hover { opacity: 1; }
+
+  #lastTxBody {
+    padding: 20px 18px 22px;
+  }
+
+  /* Loading state */
+  #lastTxLoading {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 24px 0 16px;
+    gap: 14px;
+    color: #6b7280;
+    font-size: 0.9rem;
+  }
+  .spinner-sm {
+    width: 36px; height: 36px;
+    border: 4px solid #dce8d4;
+    border-top-color: #a1b954;
+    border-radius: 50%;
+    animation: spin 0.85s linear infinite;
+  }
+
+  /* Error state */
+  #lastTxError {
+    display: none;
+    background: #fef2f2;
+    border: 1px solid #fca5a5;
+    border-radius: 8px;
+    color: #991b1b;
+    padding: 14px;
+    font-size: 0.9rem;
+    line-height: 1.5;
+  }
+
+  /* Result state */
+  #lastTxResult { display: none; }
+
+  .tx-merchant {
+    font-size: 1.35rem;
+    font-weight: 700;
+    color: #214074;
+    margin: 0 0 4px;
+    line-height: 1.2;
+  }
+  .tx-amount {
+    font-size: 2rem;
+    font-weight: 700;
+    color: #a1b954;
+    margin: 0 0 14px;
+    line-height: 1;
+  }
+  .tx-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    padding: 7px 0;
+    border-bottom: 1px solid #f0f1f3;
+    font-size: 0.9rem;
+  }
+  .tx-row:last-child { border-bottom: none; }
+  .tx-label {
+    color: #6b7280;
+    font-size: 0.78rem;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    flex-shrink: 0;
+    margin-right: 12px;
+  }
+  .tx-value {
+    color: #12100b;
+    font-weight: 500;
+    text-align: right;
+  }
+  .tx-notes {
+    margin-top: 12px;
+    padding: 10px 12px;
+    background: #f7f8fa;
+    border-left: 3px solid #a1b954;
+    border-radius: 0 6px 6px 0;
+    font-size: 0.88rem;
+    color: #374151;
+    font-style: italic;
+    line-height: 1.45;
+  }
+
+  /* ══════════════════════════════════════════════════════
+     TOTAL AMOUNT MODAL
+     ══════════════════════════════════════════════════════ */
+  #totalModal {
+    display: none;
+    position: fixed;
+    inset: 0;
+    z-index: 998;
+    background: rgba(33,64,116,0.55);
+    align-items: center;
+    justify-content: center;
+    padding: 20px;
+  }
+  #totalModal.open { display: flex; }
+
+  #totalCard {
+    background: #fff;
+    border-radius: 16px;
+    width: 100%;
+    max-width: 420px;
+    box-shadow: 0 8px 32px rgba(33,64,116,0.22);
+    overflow: hidden;
+  }
+
+  #totalCardHeader {
+    background: #a1b954;
+    color: #12100b;
+    padding: 14px 18px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+  }
+  #totalCardHeader h2 {
+    margin: 0;
+    font-size: 1rem;
+    font-weight: 600;
+    letter-spacing: 0.02em;
+  }
+  #totalCloseBtn {
+    background: none;
+    border: none;
+    color: #12100b;
+    font-size: 1.4rem;
+    cursor: pointer;
+    line-height: 1;
+    padding: 0 4px;
+    opacity: 0.7;
+  }
+  #totalCloseBtn:hover { opacity: 1; }
+
+  #totalBody {
+    padding: 20px 18px 24px;
+  }
+
+  #totalLoading {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 24px 0 16px;
+    gap: 14px;
+    color: #6b7280;
+    font-size: 0.9rem;
+  }
+
+  #totalError {
+    display: none;
+    background: #fef2f2;
+    border: 1px solid #fca5a5;
+    border-radius: 8px;
+    color: #991b1b;
+    padding: 14px;
+    font-size: 0.9rem;
+    line-height: 1.5;
+  }
+
+  /* "No data yet" — friendly info box, not an error */
+  #totalNoData {
+    display: none;
+    background: #eff6ff;
+    border: 1px solid #93c5fd;
+    border-radius: 8px;
+    color: #1e40af;
+    padding: 16px;
+    font-size: 0.9rem;
+    line-height: 1.6;
+    text-align: center;
+  }
+  #totalNoData .nodata-icon { font-size: 2rem; display: block; margin-bottom: 8px; }
+  #totalNoData strong { display: block; margin-bottom: 4px; font-size: 0.95rem; }
+
+  #totalResult { display: none; }
+
+  .total-amount-big {
+    font-size: 3rem;
+    font-weight: 800;
+    color: #214074;
+    text-align: center;
+    margin: 8px 0 4px;
+    line-height: 1;
+  }
+  .total-subtitle {
+    text-align: center;
+    color: #6b7280;
+    font-size: 0.85rem;
+    margin: 0 0 20px;
+  }
+  .total-sync {
+    margin-top: 16px;
+    padding: 10px 12px;
+    background: #f7f8fa;
+    border-radius: 8px;
+    font-size: 0.8rem;
+    color: #9ca3af;
+    text-align: center;
+  }
+  .total-sync strong { color: #6b7280; }
+
+  /* ── Notes modal ── */
+  #notesModal {
+    display: none; position: fixed; inset: 0; z-index: 300;
+    background: rgba(18,16,11,0.55);
+    align-items: center; justify-content: center; padding: 20px;
+  }
+  #notesModal.open { display: flex; }
+  #notesModalBox {
+    background: #fff; border-radius: 14px; width: 100%; max-width: 420px;
+    overflow: hidden; box-shadow: 0 8px 32px rgba(33,64,116,0.18);
+  }
+  #notesModalHeader {
+    background: #214074; color: #fff;
+    padding: 14px 18px; font-size: 1rem; font-weight: 700;
+  }
+  #notesModalBody { padding: 18px 18px 14px; }
+  #notesModalBody p {
+    margin: 0 0 12px; font-size: 0.9rem; color: #4b5563; line-height: 1.4;
+  }
+  #notesTextarea {
+    width: 100%; border: 1.5px solid #d1d5db; border-radius: 8px;
+    padding: 10px 12px; font-size: 0.95rem; font-family: inherit;
+    resize: vertical; min-height: 90px; outline: none;
+    color: #12100b;
+  }
+  #notesTextarea:focus { border-color: #214074; }
+  #notesModalFooter {
+    display: flex; gap: 10px; padding: 10px 18px 18px; justify-content: flex-end;
+  }
+  #notesSkipBtn {
+    padding: 10px 20px; border-radius: 8px; font-size: 0.95rem; cursor: pointer;
+    border: 1.5px solid #d1d5db; background: #fff; color: #374151; font-weight: 600;
+  }
+  #notesSaveBtn {
+    padding: 10px 20px; border-radius: 8px; font-size: 0.95rem; cursor: pointer;
+    border: none; background: #214074; color: #fff; font-weight: 700;
+  }
+  #notesSaveBtn:hover { background: #1a3260; }
+</style>
+</head>
+<body>
+
+  <!-- Security-check reminder -->
+  <div id="reminder"></div>
+
+  <!-- Header: TWI logo + hamburger -->
+  <header>
+    <div id="logoWrap">
+      <!-- TWI logo, cropped viewBox to content bounds -->
+      <svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink"
+           viewBox="179 56 1562 968" aria-label="TWI">
+        <defs>
+          <style>
+            .lc2{fill:#214074;fill-rule:evenodd;}
+            .lc4{fill:#a1b954;fill-rule:evenodd;}
+            .lc5,.lc6{fill:#12100b;}
+            .lc5{fill-rule:evenodd;}
+          </style>
+          <clipPath id="lcp"><rect x="179.45" y="56.05" width="1561.09" height="967.9"/></clipPath>
+        </defs>
+        <path class="lc2" d="M196,444.94c225.5-64.51,334.69,79.26,469.09,224.34,125.95,136,286.31,161.46,462,49.28-57.54-1.52-114.95-16.7-170.86-51.19C889,625.89,835.93,565.55,782.87,508c-32.21-35-65.77-70.67-103.53-100.18-102.82-83.91-273-114.52-483.34,37.15"/>
+        <g clip-path="url(#lcp)">
+          <path class="lc4" d="M381.07,319.25c339.55-86,413.43,232.72,621.68,334.89,94.66,46.45,227.42,55.82,404.84-53.26-88.5,8.69-173.08-9.9-248.91-56.67-77.56-47.84-138.92-117.72-200.09-184.14C784.34,170.88,607.25,186.66,381.07,319.25"/>
+          <path class="lc5" d="M566.15,202.32c156.16-42.3,292.58,1.12,412.81,130,34.32,36.8,68,74.3,103.84,108.18,45.75,43.28,96.46,81.35,156.14,104.82,152.55,60,350.52,12.67,485.07-101C1503.49,474.32,1354,329.18,1213.16,188c-199.83-200.43-432.91-153.66-647,14.34"/>
+          <path class="lc6" d="M1203.33,895.08,1161.6,988.4c-3.91,8.57-7.82,10.8-14.15,10.8-6.89,0-11-2.79-14.34-9.68l-18.44-37.81,27.38-56.63h-26.82l-14.91,30.55-14.71-30.55h-26.83l27.39,56.63-18.45,37.81c-3.34,6.89-7.44,9.68-14.33,9.68-6.33,0-10.25-2.23-14.16-10.8l-41.72-93.32H969.38l46,103c9.88,22,26.45,26.27,38.19,26.27,15.09,0,29.25-7.26,37.45-24l9.3-19.37,9.51,19.37c8.2,16.77,22.17,24,37.44,24,11.73,0,28.31-4.29,38.19-26.27l46-103h-28.13m139.1,25.14c-8.12-15.87-17.7-27-39.49-27s-31.42,11.21-39.48,27l-52.16,102.27h28.5L1256,991h93.88l16.21,31.48h28.68Zm-4.84,47.13h-69.48l21.61-41.72c2.79-5.4,6.33-8.76,13.22-8.76s10.45,3.35,13.22,8.76Zm373.72-72.27-48.06,95.37c-2.73,5.42-6.33,8.56-13.23,8.56s-10.49-3.13-13.22-8.56l-48.06-95.37H1559.5l50.67,102.26c7.83,15.82,18.06,27,39.85,27s32-11.19,39.86-27l50.67-102.26Zm-342.79,0,63,68.73c3.92,4.27,14.35,14.35,14.35,22.17v36.51h26.64V986c0-7.82,10.42-17.9,14.34-22.17l63-68.73h-32.19l-58.42,62.25-58.43-62.25Z"/>
+        </g>
+        <path class="lc6" d="M269.42,1022.49V919.1h63.34v-24H179.45v24h63.34v103.39h26.63m246.62,0V895.08H489.41v51.77H382.48V895.08H355.86v127.41h26.62v-52H489.41v52Zm31.67,0h26.64V895.08H547.71Zm58.3,0h26.65V980.57H716.1c16.95,0,20.87,9.13,20.87,16.21v25.71h27.56V997.34c0-13.23-7.08-23.66-23.28-28.87,16.58-4.85,26.08-15.83,26.08-33.71,0-25.53-19.37-39.68-50.67-39.68H606Zm26.65-65.57V918.55h86.05c16.39,0,21.42,10.8,21.42,19.18s-5,19.19-21.42,19.19Zm161.11,65.57H898.46c45.64,0,61.29-21.8,61.29-63.71s-15.65-63.7-61.29-63.7H793.77Zm138.78-63.71c0,24.4-3.73,37.63-34.09,37.63H820.41V921h78.05C928.82,921,932.55,934.38,932.55,958.78Z"/>
+      </svg>
+      <span id="appTitle">KaChing</span>
+    </div>
+    <button id="hamburgerBtn" aria-label="Menu">&#9776;</button>
+    <div id="dropdown">
+      <button id="menuLastTx">&#128200; Last Recorded Expense</button>
+      <button id="menuTotal">&#128176; Total Recorded</button>
+      <button id="menuSecurity">&#128274; Security Check</button>
+      <button id="menuLog">&#9776; Logs</button>
+      <button id="menuPeriodReset">&#128260; Reporting Period Reset</button>
+    </div>
+  </header>
+
+  <!-- Main content -->
+  <main>
+
+    <!-- State 0: Idle -->
+    <div id="idlePane">
+      <label class="btn-capture" for="cam">Capture New Receipt</label>
+      <input id="cam" type="file" accept="image/*" capture="environment">
+    </div>
+
+    <!-- State 1: Processing -->
+    <div id="processingPane">
+      <div class="spinner"></div>
+      <h2>Processing&hellip;</h2>
+      <p id="processingSubStatus"></p>
+    </div>
+
+    <!-- State 2: Result -->
+    <div id="resultPane">
+      <div id="resultMsg"></div>
+      <a id="dlLink" class="btn-download" style="display:none">&#8595; Download PDF (fallback)</a>
+      <button class="btn-secondary" onclick="resetToIdle()">Capture Another</button>
+    </div>
+
+  </main>
+
+  <!-- Log panel -->
+  <div id="logPanel">
+    <h3>Details &amp; Log</h3>
+    <div id="info">No capture yet.</div>
+    <div id="log">Log will appear here.</div>
+  </div>
+
+  <!-- ══ CROP MODAL ══ -->
+  <div id="cropModal">
+    <div id="cropInstructions">
+      <strong>Frame your receipt</strong>
+      Drag each corner handle to the matching corner of your receipt, then tap <strong>Confirm</strong>.
+    </div>
+    <canvas id="cropCanvas"></canvas>
+    <div id="hwCheckArea">
+      <label id="hwCheckLabel">
+        <input type="checkbox" id="hwCheck">
+        Receipt has handwritten notes
+      </label>
+    </div>
+    <div id="cropButtons">
+      <button id="confirmCornersBtn">&#10003; Confirm</button>
+      <button id="resetCornersBtn">&#8635; Reset</button>
+    </div>
+  </div>
+
+  <!-- ══ LAST TRANSACTION MODAL ══ -->
+  <div id="lastTxModal">
+    <div id="lastTxCard">
+      <div id="lastTxCardHeader">
+        <h2>&#128200; Last Transaction</h2>
+        <button id="lastTxCloseBtn" onclick="closeTxModal()" aria-label="Close">&times;</button>
+      </div>
+      <div id="lastTxBody">
+        <div id="lastTxLoading">
+          <div class="spinner-sm"></div>
+          <span>Fetching from Drive&hellip;</span>
+        </div>
+        <div id="lastTxError"></div>
+        <div id="lastTxResult"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ══ TOTAL AMOUNT MODAL ══ -->
+  <div id="totalModal">
+    <div id="totalCard">
+      <div id="totalCardHeader">
+        <h2>&#128176; Total Recorded</h2>
+        <button id="totalCloseBtn" onclick="closeTotalModal()" aria-label="Close">&times;</button>
+      </div>
+      <div id="totalBody">
+        <div id="totalLoading">
+          <div class="spinner-sm"></div>
+          <span>Fetching from Drive&hellip;</span>
+        </div>
+        <div id="totalError"></div>
+        <div id="totalNoData">
+          <span class="nodata-icon">&#128202;</span>
+          <strong>No expense data yet</strong>
+          Summary is generated by Cowork at end-of-period filing. Run TEARDOWN to populate.
+        </div>
+        <div id="totalResult"></div>
+      </div>
+    </div>
+  </div>
+
+
+<!-- ── Notes modal ── -->
+<div id="notesModal" role="dialog" aria-modal="true" aria-labelledby="notesModalTitle">
+  <div id="notesModalBox">
+    <div id="notesModalHeader" id="notesModalTitle">&#9998; Additional Notes</div>
+    <div id="notesModalBody">
+      <p>Any notes to attach to this receipt? (optional)</p>
+      <textarea id="notesTextarea" placeholder="e.g. tip was $11, shared lunch with client…" rows="4"></textarea>
+    </div>
+    <div id="notesModalFooter">
+      <button id="notesSkipBtn">Skip</button>
+      <button id="notesSaveBtn">Save Notes</button>
+    </div>
+  </div>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf-lib/1.17.1/pdf-lib.min.js"></script>
+<script>
+// =============================================================================
+// CONFIG
+// =============================================================================
+const APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbxR9p1bxd-xm59iZxVpqgyXllLkAtEHH7Ce3zTZEhFiZUX99f8vhN3wqot9GYWzjgCh-A/exec';
+const SHARED_SECRET   = 'fdd1e8638cdcfaaef62ec125327165f71a19e3bbacd3ccee';
+const REMINDER_INTERVAL_DAYS = 60;
+
+// =============================================================================
+// STATE HELPERS
+// =============================================================================
+const panes = ['idlePane','processingPane','resultPane'];
+
+function showPane(id) {
+  panes.forEach(p => {
+    const el = document.getElementById(p);
+    el.style.display = (p === id)
+      ? (p === 'processingPane' || p === 'resultPane' ? 'flex' : 'block')
+      : 'none';
+  });
+}
+
+function openCropModal()  { document.getElementById('cropModal').classList.add('open'); }
+function closeCropModal() { document.getElementById('cropModal').classList.remove('open'); }
+
+function resetToIdle() {
+  document.getElementById('cam').value = '';
+  document.getElementById('hwCheck').checked = false;
+  document.getElementById('dlLink').style.display = 'none';
+  document.getElementById('resultMsg').textContent = '';
+  document.getElementById('resultMsg').className = '';
+  document.getElementById('processingSubStatus').textContent = '';
+  closeCropModal();
+  showPane('idlePane');
+}
+
+function setSubStatus(msg) {
+  document.getElementById('processingSubStatus').textContent = msg;
+}
+
+function showResult(ok, html, dlBlob, dlName) {
+  const msg = document.getElementById('resultMsg');
+  msg.innerHTML = html;
+  msg.className = ok ? 'ok' : 'err';
+  if (dlBlob && dlName) {
+    const dl = document.getElementById('dlLink');
+    dl.href = URL.createObjectURL(dlBlob);
+    dl.download = dlName;
+    dl.textContent = '⬇ Download ' + dlName;
+    dl.style.display = 'inline-block';
+  }
+  showPane('resultPane');
+}
+
+// =============================================================================
+// LOGGING
+// =============================================================================
+const info = document.getElementById('info');
+const logEl = document.getElementById('log');
+
+function log(msg) {
+  const ts = new Date().toLocaleTimeString();
+  logEl.textContent = '[' + ts + '] ' + msg + '\n' + logEl.textContent;
+}
+
+// =============================================================================
+// HAMBURGER MENU
+// =============================================================================
+const hamburgerBtn = document.getElementById('hamburgerBtn');
+const dropdown     = document.getElementById('dropdown');
+
+hamburgerBtn.addEventListener('click', (e) => {
+  e.stopPropagation();
+  dropdown.classList.toggle('open');
+});
+
+document.addEventListener('click', () => dropdown.classList.remove('open'));
+dropdown.addEventListener('click', e => e.stopPropagation());
+
+document.getElementById('menuLog').addEventListener('click', () => {
+  const lp = document.getElementById('logPanel');
+  lp.style.display = lp.style.display === 'none' ? 'block' : 'none';
+  dropdown.classList.remove('open');
+});
+
+document.getElementById('menuSecurity').addEventListener('click', () => {
+  dropdown.classList.remove('open');
+  const rem = document.getElementById('reminder');
+  if (rem.style.display === 'none' || rem.innerHTML === '') {
+    showReminder(0, true);
+  } else {
+    rem.scrollIntoView({ behavior: 'smooth' });
+  }
+});
+
+document.getElementById('menuLastTx').addEventListener('click', () => {
+  dropdown.classList.remove('open');
+  fetchLastTransaction();
+});
+
+document.getElementById('menuTotal').addEventListener('click', () => {
+  dropdown.classList.remove('open');
+  fetchTotalAmount();
+});
+
+document.getElementById('menuPeriodReset').addEventListener('click', () => {
+  dropdown.classList.remove('open');
+  if (confirm('Reset the receipt counter to R01?\nThe next receipt captured will be numbered R01. This cannot be undone.')) {
+    localStorage.removeItem('twi-rcpt-date');
+    localStorage.removeItem('twi-rcpt-count');
+    log('Reporting period reset — next receipt will be R01');
+    alert('Done. Next receipt will be numbered R01.');
+  }
+});
+
+// =============================================================================
+// LAST TRANSACTION
+// =============================================================================
+function openTxModal()  { document.getElementById('lastTxModal').classList.add('open'); }
+function closeTxModal() { document.getElementById('lastTxModal').classList.remove('open'); }
+
+// Close modal on backdrop click
+document.getElementById('lastTxModal').addEventListener('click', (e) => {
+  if (e.target === document.getElementById('lastTxModal')) closeTxModal();
+});
+
+function showTxState(state, data) {
+  document.getElementById('lastTxLoading').style.display = state === 'loading' ? 'flex'  : 'none';
+  document.getElementById('lastTxError').style.display   = state === 'error'   ? 'block' : 'none';
+  document.getElementById('lastTxResult').style.display  = state === 'result'  ? 'block' : 'none';
+
+  // Show friendly no-data card inside the error area when noData:true
+  if (state === 'error' && data && data.noData) {
+    document.getElementById('lastTxError').innerHTML =
+      '<div style="text-align:center;padding:8px 0">' +
+      '<span style="font-size:2rem">&#128202;</span>' +
+      '<p style="font-weight:600;margin:8px 0 4px;color:#374151">No expense data yet</p>' +
+      '<p style="color:#6b7280;font-size:0.88rem;line-height:1.5;margin:0">' +
+      'Summary is generated by Cowork at end-of-period filing.</p></div>';
+    return;
+  }
+  if (state === 'error') {
+    document.getElementById('lastTxError').textContent = '⚠ ' + data;
+  }
+  if (state === 'result') {
+    const t = data;
+    const notesHtml = t.notes
+      ? '<div class="tx-notes">&#9998; ' + escHtml(String(t.notes)) + '</div>'
+      : '';
+    document.getElementById('lastTxResult').innerHTML =
+      '<p class="tx-merchant">' + escHtml(String(t.merchant)) + '</p>' +
+      '<p class="tx-amount">$' + Number(t.amount).toFixed(2) + '</p>' +
+      '<div class="tx-row"><span class="tx-label">Date</span><span class="tx-value">' + escHtml(String(t.date)) + '</span></div>' +
+      '<div class="tx-row"><span class="tx-label">Account</span><span class="tx-value">' + escHtml(String(t.account)) + ' &mdash; ' + escHtml(String(t.description)) + '</span></div>' +
+      '<div class="tx-row"><span class="tx-label">Receipt #</span><span class="tx-value">' + escHtml(String(t.index)) + '</span></div>' +
+      notesHtml;
+  }
+}
+
+function escHtml(s) {
+  return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+async function fetchLastTransaction() {
+  openTxModal();
+  showTxState('loading');
+  try {
+    const url = APPS_SCRIPT_URL + '?action=lastTransaction&secret=' + encodeURIComponent(SHARED_SECRET);
+    const res  = await fetch(url, { redirect: 'follow' });
+    const text = await res.text();
+    let json;
+    try { json = JSON.parse(text); }
+    catch (e) { throw new Error('Unexpected response from server'); }
+    if (!json.ok) {
+      if (json.noData) { showTxState('error', { noData: true }); return; }
+      throw new Error(json.error || 'Server returned an error');
+    }
+    showTxState('result', json.transaction);
+    log('Last transaction fetched: ' + json.transaction.merchant + ' $' + json.transaction.amount);
+  } catch (err) {
+    showTxState('error', err.message);
+    log('ERROR (lastTx): ' + err.message);
+  }
+}
+
+// =============================================================================
+// TOTAL AMOUNT MODAL
+// =============================================================================
+function openTotalModal()  { document.getElementById('totalModal').classList.add('open'); }
+function closeTotalModal() { document.getElementById('totalModal').classList.remove('open'); }
+
+document.getElementById('totalModal').addEventListener('click', (e) => {
+  if (e.target === document.getElementById('totalModal')) closeTotalModal();
+});
+
+function showTotalState(state, data) {
+  document.getElementById('totalLoading').style.display = state === 'loading' ? 'flex'  : 'none';
+  document.getElementById('totalError').style.display   = state === 'error'   ? 'block' : 'none';
+  document.getElementById('totalNoData').style.display  = state === 'nodata'  ? 'block' : 'none';
+  document.getElementById('totalResult').style.display  = state === 'result'  ? 'block' : 'none';
+
+  if (state === 'error') {
+    document.getElementById('totalError').textContent = '⚠ ' + data;
+  }
+  if (state === 'result') {
+    document.getElementById('totalResult').innerHTML =
+      '<p class="total-amount-big">$' + Number(data.totalAmount).toFixed(2) + '</p>' +
+      '<p class="total-subtitle">' + data.receiptCount + ' receipt' + (data.receiptCount !== 1 ? 's' : '') + ' recorded</p>' +
+      '<div class="tx-row"><span class="tx-label">Period total</span>' +
+        '<span class="tx-value" style="font-size:1.1rem;font-weight:700;color:#214074">$' + Number(data.totalAmount).toFixed(2) + '</span></div>' +
+      '<div class="tx-row"><span class="tx-label">Receipts</span>' +
+        '<span class="tx-value">' + data.receiptCount + '</span></div>' +
+      '<div class="total-sync"><strong>Last synced:</strong> ' + escHtml(String(data.updatedAt)) + '</div>';
+  }
+}
+
+async function fetchTotalAmount() {
+  openTotalModal();
+  showTotalState('loading');
+  try {
+    const url  = APPS_SCRIPT_URL + '?action=totalAmount&secret=' + encodeURIComponent(SHARED_SECRET);
+    const res  = await fetch(url, { redirect: 'follow' });
+    const text = await res.text();
+    let json;
+    try { json = JSON.parse(text); }
+    catch (e) { throw new Error('Unexpected response from server'); }
+    if (!json.ok) {
+      if (json.noData) { showTotalState('nodata'); return; }
+      throw new Error(json.error || 'Server returned an error');
+    }
+    showTotalState('result', json);
+    log('Total fetched: $' + json.totalAmount + ' across ' + json.receiptCount + ' receipts');
+  } catch (err) {
+    showTotalState('error', err.message);
+    log('ERROR (totalAmount): ' + err.message);
+  }
+}
+
+// =============================================================================
+// SECURITY-CHECK REMINDER
+// =============================================================================
+const ACK_KEY = 'receipt-uploader-last-security-check';
+
+function isConfigured() {
+  return !APPS_SCRIPT_URL.startsWith('PASTE_') && !SHARED_SECRET.startsWith('PASTE_');
+}
+
+function checkReminder() {
+  let lastAck;
+  try { lastAck = parseInt(localStorage.getItem(ACK_KEY) || '0', 10); }
+  catch (e) { return; }
+  const now = Date.now();
+  if (!lastAck) {
+    try { localStorage.setItem(ACK_KEY, String(now)); } catch (e) {}
+    return;
+  }
+  const daysSince = Math.floor((now - lastAck) / (1000 * 60 * 60 * 24));
+  if (daysSince >= REMINDER_INTERVAL_DAYS) showReminder(daysSince, false);
+}
+
+function showReminder(days, forced) {
+  const reminderEl = document.getElementById('reminder');
+  const heading = forced
+    ? '&#128274; Security check'
+    : '&#9888; Security check overdue (' + days + ' days)';
+  reminderEl.innerHTML =
+    '<h2>' + heading + '</h2>' +
+    '<p>Your receipt-upload Apps Script has a publicly-callable URL. Review the execution log periodically:</p>' +
+    '<ol>' +
+      '<li>Open <a href="https://script.google.com/home/projects" target="_blank" rel="noopener">script.google.com/home/projects</a></li>' +
+      '<li>Open the <strong>Receipt Uploader</strong> project</li>' +
+      '<li>Click <strong>Executions</strong> in the left sidebar</li>' +
+      '<li>Scan for unexpected calls, repeated failures, or volume spikes</li>' +
+      '<li>If anything looks wrong: <strong>Deploy &rarr; Archive</strong> to kill the URL, then rotate the SHARED_SECRET in both files and redeploy</li>' +
+    '</ol>' +
+    '<button id="ackBtn">&#10003; I checked &mdash; remind me in ' + REMINDER_INTERVAL_DAYS + ' days</button>';
+  reminderEl.style.display = 'block';
+  document.getElementById('ackBtn').addEventListener('click', () => {
+    try { localStorage.setItem(ACK_KEY, String(Date.now())); } catch (e) {}
+    reminderEl.style.display = 'none';
+    log('Security-check acknowledged.');
+  });
+}
+
+// =============================================================================
+// IMAGE NORMALIZATION
+// =============================================================================
+const MAX_DIM = 2048;  // downscale cap for processing
+
+async function normalizeImage(file) {
+  const bitmap = await createImageBitmap(file, { imageOrientation: 'from-image' });
+  let w = bitmap.width, h = bitmap.height;
+  if (Math.max(w, h) > MAX_DIM) {
+    const s = MAX_DIM / Math.max(w, h);
+    w = Math.round(w * s);
+    h = Math.round(h * s);
+  }
+  const canvas = document.createElement('canvas');
+  canvas.width = w; canvas.height = h;
+  canvas.getContext('2d').drawImage(bitmap, 0, 0, w, h);
+  const blob = await new Promise(r => canvas.toBlob(r, 'image/jpeg', 0.92));
+  return { blob, width: w, height: h };
+}
+
+// =============================================================================
+// PDF BUILD
+// =============================================================================
+async function buildPdf(normalized) {
+  const { PDFDocument } = PDFLib;
+  const pdfDoc = await PDFDocument.create();
+  const bytes  = new Uint8Array(await normalized.blob.arrayBuffer());
+  const img    = await pdfDoc.embedJpg(bytes);
+  // v9: page dimensions match the receipt's actual aspect ratio (not fixed A4).
+  // Scale to fit within 8.5" x 11" (612 x 792 pts at 72 DPI), preserving aspect ratio.
+  // This ensures narrow thermal receipts produce skinny PDF pages that get tiled
+  // during Task 3 CombinedReceipts generation instead of each getting a full page.
+  const MAX_W = 612, MAX_H = 792;
+  const scale  = Math.min(MAX_W / img.width, MAX_H / img.height);
+  const pageW  = Math.round(img.width  * scale);
+  const pageH  = Math.round(img.height * scale);
+  const page   = pdfDoc.addPage([pageW, pageH]);
+  page.drawImage(img, { x: 0, y: 0, width: pageW, height: pageH });
+  const pdfBytes = await pdfDoc.save();
+  const blob = new Blob([pdfBytes], { type: 'application/pdf' });
+  return { blob, name: generateReceiptName() };
+}
+
+// =============================================================================
+// RECEIPT FILENAME GENERATOR  R##_ddMmm'yy  (counter resets each day)
+// =============================================================================
+function generateReceiptName() {
+  const now    = new Date();
+  const months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+  const dd     = String(now.getDate()).padStart(2, '0');
+  const mmm    = months[now.getMonth()];
+  const yy     = String(now.getFullYear()).slice(-2);
+  const dateStr = dd + mmm + "'" + yy;          // e.g. 15May'26
+
+  const KEY_DATE  = 'twi-rcpt-date';
+  const KEY_COUNT = 'twi-rcpt-count';
+
+  let count = 1;
+  try {
+    const lastDate  = localStorage.getItem(KEY_DATE);
+    const lastCount = parseInt(localStorage.getItem(KEY_COUNT) || '0', 10);
+    if (lastDate === dateStr && lastCount >= 1) {
+      count = Math.min(lastCount + 1, 99);
+    }
+    localStorage.setItem(KEY_DATE,  dateStr);
+    localStorage.setItem(KEY_COUNT, String(count));
+  } catch (e) { /* localStorage unavailable — default to 01 */ }
+
+  const seq = String(count).padStart(2, '0');
+  return 'R' + seq + '_' + dateStr + '.pdf';
+}
+
+// =============================================================================
+// UPLOAD
+// =============================================================================
+async function blobToBase64(blob) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload  = () => resolve(reader.result.split(',')[1]);
+    reader.onerror = () => reject(reader.error);
+    reader.readAsDataURL(blob);
+  });
+}
+
+async function uploadToDrive(blob, filename, notes) {
+  const base64 = await blobToBase64(blob);
+  const body   = new URLSearchParams();
+  body.append('secret',   SHARED_SECRET);
+  body.append('filename', filename);
+  body.append('content',  base64);
+  body.append('notes',    notes || '');
+  const res  = await fetch(APPS_SCRIPT_URL, { method: 'POST', body, redirect: 'follow' });
+  const text = await res.text();
+  let json;
+  try { json = JSON.parse(text); }
+  catch (e) { throw new Error('non-JSON response: ' + text.substring(0, 200)); }
+  if (!json.ok) throw new Error(json.error || 'server returned !ok');
+  return json;
+}
+
+// =============================================================================
+// NOTES DIALOG
+// =============================================================================
+function showNotesDialog() {
+  return new Promise((resolve) => {
+    const modal    = document.getElementById('notesModal');
+    const textarea = document.getElementById('notesTextarea');
+    const skipBtn  = document.getElementById('notesSkipBtn');
+    const saveBtn  = document.getElementById('notesSaveBtn');
+
+    textarea.value = '';
+    modal.classList.add('open');
+    textarea.focus();
+
+    function finish(notes) {
+      modal.classList.remove('open');
+      skipBtn.onclick = null;
+      saveBtn.onclick = null;
+      resolve(notes);
+    }
+
+    skipBtn.onclick = () => finish('');
+    saveBtn.onclick = () => finish(textarea.value.trim());
+  });
+}
+
+// =============================================================================
+// CORNER PICKER
+// =============================================================================
+function runCornerPicker(file) {
+  return new Promise((resolve, reject) => {
+    const canvas     = document.getElementById('cropCanvas');
+    const confirmBtn = document.getElementById('confirmCornersBtn');
+    const resetBtn   = document.getElementById('resetCornersBtn');
+    const ctx        = canvas.getContext('2d');
+
+    const img = new Image();
+    img.onload = () => {
+      // Cap canvas to screen width so the modal opens fast on high-res photos
+      const maxW = Math.min(img.naturalWidth, window.innerWidth);
+      const ratio = maxW / img.naturalWidth;
+      canvas.width  = Math.round(img.naturalWidth  * ratio);
+      canvas.height = Math.round(img.naturalHeight * ratio);
+      resetCorners();
+      openCropModal();
+      draw();
+    };
+    img.onerror = () => reject(new Error('Failed to load image into corner picker'));
+    img.src = URL.createObjectURL(file);
+
+    let corners = [], dragIdx = -1;
+
+    function resetCorners() {
+      const inset = 0.05, w = canvas.width, h = canvas.height;
+      corners = [
+        { x: w * inset,       y: h * inset },
+        { x: w * (1 - inset), y: h * inset },
+        { x: w * (1 - inset), y: h * (1 - inset) },
+        { x: w * inset,       y: h * (1 - inset) },
+      ];
+    }
+
+    function draw() {
+      ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+      ctx.beginPath();
+      corners.forEach((c, i) => i === 0 ? ctx.moveTo(c.x, c.y) : ctx.lineTo(c.x, c.y));
+      ctx.closePath();
+      ctx.fillStyle = 'rgba(161,185,84,0.18)';
+      ctx.fill();
+      ctx.strokeStyle = '#a1b954';
+      ctx.lineWidth = Math.max(4, canvas.width / 300);
+      ctx.stroke();
+      const r = Math.max(28, canvas.width / 50);
+      corners.forEach(c => {
+        ctx.beginPath();
+        ctx.arc(c.x, c.y, r, 0, Math.PI * 2);
+        ctx.fillStyle = '#ffffff';
+        ctx.fill();
+        ctx.strokeStyle = '#214074';
+        ctx.lineWidth = Math.max(4, canvas.width / 300);
+        ctx.stroke();
+      });
+    }
+
+    function eventPoint(e) {
+      const rect = canvas.getBoundingClientRect();
+      const t    = (e.touches && e.touches[0]) ? e.touches[0] : e;
+      return {
+        x: (t.clientX - rect.left) * (canvas.width  / rect.width),
+        y: (t.clientY - rect.top)  * (canvas.height / rect.height),
+      };
+    }
+
+    function onStart(e) {
+      e.preventDefault();
+      const p = eventPoint(e);
+      let best = -1, bestD = Infinity;
+      corners.forEach((c, i) => { const d = Math.hypot(c.x-p.x, c.y-p.y); if (d < bestD) { bestD = d; best = i; } });
+      if (bestD < Math.max(80, canvas.width / 12)) dragIdx = best;
+    }
+    function onMove(e) {
+      if (dragIdx < 0) return;
+      e.preventDefault();
+      const p = eventPoint(e);
+      p.x = Math.max(0, Math.min(canvas.width,  p.x));
+      p.y = Math.max(0, Math.min(canvas.height, p.y));
+      corners[dragIdx] = p;
+      draw();
+    }
+    function onEnd() { dragIdx = -1; }
+
+    canvas.addEventListener('touchstart', onStart, { passive: false });
+    canvas.addEventListener('touchmove',  onMove,  { passive: false });
+    canvas.addEventListener('touchend',   onEnd);
+    canvas.addEventListener('mousedown',  onStart);
+    canvas.addEventListener('mousemove',  onMove);
+    canvas.addEventListener('mouseup',    onEnd);
+    canvas.addEventListener('mouseleave', onEnd);
+
+    function cleanup() {
+      ['touchstart','touchmove','touchend','mousedown','mousemove','mouseup','mouseleave']
+        .forEach((ev, i) => canvas.removeEventListener(ev,
+          [onStart,onMove,onEnd,onStart,onMove,onEnd,onEnd][i]));
+      confirmBtn.onclick = null;
+      resetBtn.onclick   = null;
+    }
+
+    resetBtn.onclick = () => { resetCorners(); draw(); };
+
+    confirmBtn.onclick = async () => {
+      confirmBtn.disabled = true;
+      confirmBtn.textContent = 'Processing…';
+      try {
+        // Normalize (+ downscale to MAX_DIM) now that corners are confirmed
+        const normalized = await normalizeImage(file);
+
+        // Scale corners from display-canvas space → normalized-image space
+        const normCorners = corners.map(c => ({
+          x: c.x * normalized.width  / canvas.width,
+          y: c.y * normalized.height / canvas.height
+        }));
+
+        // Load the normalized blob for warpPerspective
+        const normImg = new Image();
+        await new Promise((res, rej) => {
+          normImg.onload = res;
+          normImg.onerror = () => rej(new Error('Failed to load normalized image'));
+          normImg.src = URL.createObjectURL(normalized.blob);
+        });
+
+        const warpedBlob = await warpPerspective(normImg, normCorners);
+        const bmp = await createImageBitmap(warpedBlob);
+        const hasHandwriting = document.getElementById('hwCheck').checked;
+        cleanup();
+        closeCropModal();
+        confirmBtn.disabled = false;
+        confirmBtn.textContent = '✓ Confirm';
+        resolve({ blob: warpedBlob, width: bmp.width, height: bmp.height, hasHandwriting });
+      } catch (err) {
+        closeCropModal();
+        confirmBtn.disabled = false;
+        confirmBtn.textContent = '✓ Confirm';
+        reject(err);
+      }
+    };
+  });
+}
+
+// =============================================================================
+// PERSPECTIVE WARP
+// =============================================================================
+async function warpPerspective(img, srcCorners) {
+  const d = (a, b) => Math.hypot(a.x - b.x, a.y - b.y);
+  const dstW = Math.max(64, Math.round((d(srcCorners[0],srcCorners[1]) + d(srcCorners[3],srcCorners[2])) / 2));
+  const dstH = Math.max(64, Math.round((d(srcCorners[0],srcCorners[3]) + d(srcCorners[1],srcCorners[2])) / 2));
+
+  const sc = document.createElement('canvas');
+  sc.width = img.naturalWidth; sc.height = img.naturalHeight;
+  sc.getContext('2d').drawImage(img, 0, 0);
+  const srcData = sc.getContext('2d').getImageData(0, 0, sc.width, sc.height);
+
+  const dc = document.createElement('canvas');
+  dc.width = dstW; dc.height = dstH;
+  const dCtx = dc.getContext('2d');
+  const dstData = dCtx.createImageData(dstW, dstH);
+
+  const dstCorners = [{x:0,y:0},{x:dstW,y:0},{x:dstW,y:dstH},{x:0,y:dstH}];
+  const H = computeHomography(dstCorners, srcCorners);
+  const sw = sc.width, sb = srcData.data, db = dstData.data;
+  const [h0,h1,h2,h3,h4,h5,h6,h7] = H;
+
+  for (let y = 0; y < dstH; y++) {
+    const row = y * dstW * 4;
+    for (let x = 0; x < dstW; x++) {
+      const w  = h6*x + h7*y + 1;
+      const sx = (h0*x + h1*y + h2) / w;
+      const sy = (h3*x + h4*y + h5) / w;
+      const x0 = Math.floor(sx), y0 = Math.floor(sy);
+      const x1 = x0+1, y1 = y0+1;
+      const i  = row + x*4;
+      if (x0<0||y0<0||x1>=sw||y1>=sc.height) { db[i]=db[i+1]=db[i+2]=255; db[i+3]=255; continue; }
+      const fx=sx-x0, fy=sy-y0;
+      const w00=(1-fx)*(1-fy), w01=fx*(1-fy), w10=(1-fx)*fy, w11=fx*fy;
+      const i00=(y0*sw+x0)*4, i01=(y0*sw+x1)*4, i10=(y1*sw+x0)*4, i11=(y1*sw+x1)*4;
+      db[i]  =sb[i00]*w00+sb[i01]*w01+sb[i10]*w10+sb[i11]*w11;
+      db[i+1]=sb[i00+1]*w00+sb[i01+1]*w01+sb[i10+1]*w10+sb[i11+1]*w11;
+      db[i+2]=sb[i00+2]*w00+sb[i01+2]*w01+sb[i10+2]*w10+sb[i11+2]*w11;
+      db[i+3]=255;
+    }
+  }
+  dCtx.putImageData(dstData, 0, 0);
+  return await new Promise(r => dc.toBlob(r, 'image/jpeg', 0.92));
+}
+
+function computeHomography(src, dst) {
+  const A = [], b = [];
+  for (let i = 0; i < 4; i++) {
+    const xs=src[i].x, ys=src[i].y, xd=dst[i].x, yd=dst[i].y;
+    A.push([xs,ys,1,0,0,0,-xs*xd,-ys*xd]);
+    A.push([0,0,0,xs,ys,1,-xs*yd,-ys*yd]);
+    b.push(xd); b.push(yd);
+  }
+  return gaussianSolve(A, b);
+}
+
+function gaussianSolve(A, b) {
+  const n = A.length;
+  const M = A.map((row, i) => row.concat(b[i]));
+  for (let i = 0; i < n; i++) {
+    let pivot = i;
+    for (let k=i+1;k<n;k++) if (Math.abs(M[k][i])>Math.abs(M[pivot][i])) pivot=k;
+    if (pivot!==i) { const tmp=M[i]; M[i]=M[pivot]; M[pivot]=tmp; }
+    if (Math.abs(M[i][i])<1e-12) throw new Error('Singular homography system');
+    for (let k=i+1;k<n;k++) {
+      const f=M[k][i]/M[i][i];
+      for (let j=i;j<=n;j++) M[k][j]-=f*M[i][j];
+    }
+  }
+  const x = new Array(n);
+  for (let i=n-1;i>=0;i--) {
+    let s=M[i][n];
+    for (let j=i+1;j<n;j++) s-=M[i][j]*x[j];
+    x[i]=s/M[i][i];
+  }
+  return x;
+}
+
+// =============================================================================
+// AUTO-CONTRAST ENHANCEMENT
+// =============================================================================
+async function enhanceImage(blob) {
+  const bmp    = await createImageBitmap(blob);
+  const canvas = document.createElement('canvas');
+  canvas.width=bmp.width; canvas.height=bmp.height;
+  const ctx = canvas.getContext('2d');
+  ctx.drawImage(bmp, 0, 0);
+  const imgData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+  const px = imgData.data;
+  const histR=new Uint32Array(256), histG=new Uint32Array(256), histB=new Uint32Array(256);
+  const N = canvas.width * canvas.height;
+  for (let i=0;i<px.length;i+=4) { histR[px[i]]++; histG[px[i+1]]++; histB[px[i+2]]++; }
+  const lo=Math.floor(N*0.01), hi=Math.floor(N*0.99);
+  function pct(h,t) { let c=0; for (let v=0;v<256;v++) { c+=h[v]; if(c>=t) return v; } return 255; }
+  function lut(lo,hi) {
+    const t=new Uint8ClampedArray(256), r=Math.max(1,hi-lo);
+    for (let v=0;v<256;v++) t[v]=Math.max(0,Math.min(255,Math.round((v-lo)*255/r)));
+    return t;
+  }
+  const lR=lut(pct(histR,lo),pct(histR,hi));
+  const lG=lut(pct(histG,lo),pct(histG,hi));
+  const lB=lut(pct(histB,lo),pct(histB,hi));
+  for (let i=0;i<px.length;i+=4) { px[i]=lR[px[i]]; px[i+1]=lG[px[i+1]]; px[i+2]=lB[px[i+2]]; }
+  ctx.putImageData(imgData, 0, 0);
+  return await new Promise(r => canvas.toBlob(r, 'image/jpeg', 0.92));
+}
+
+// =============================================================================
+// MAIN FLOW
+// =============================================================================
+document.getElementById('cam').addEventListener('change', async (e) => {
+  const file = e.target.files && e.target.files[0];
+  if (!file) return;
+
+  info.textContent = 'File: ' + file.name + '\nSize: ' + (file.size/1024).toFixed(1) + ' KB';
+  log('Photo selected: ' + file.name);
+
+  // 1. Corner-pick: modal opens immediately; normalize+warp happen on Confirm
+  let cropped;
+  try {
+    cropped = await runCornerPicker(file);
+    log('Cropped: ' + cropped.width + 'x' + cropped.height + ' (' + (cropped.blob.size/1024).toFixed(1) + ' KB)');
+    log('Handwriting declared: ' + (cropped.hasHandwriting ? 'YES ✎' : 'none'));
+  } catch (err) {
+    showResult(false, '&#10007; Cropping failed: ' + err.message, null, null);
+    log('ERROR (crop): ' + err.message);
+    return;
+  }
+
+  // 2b. Notes dialog
+  const notes = await showNotesDialog();
+  if (notes) log('Notes: ' + notes);
+  else       log('Notes: (none)');
+
+  // 3–6. Processing state
+  showPane('processingPane');
+
+  // 3. Enhance
+  setSubStatus('Enhancing image…');
+  try {
+    cropped.blob = await enhanceImage(cropped.blob);
+    log('Enhanced: ' + (cropped.blob.size/1024).toFixed(1) + ' KB');
+  } catch (err) {
+    log('WARN (enhance): ' + err.message + ' — continuing.');
+  }
+
+  // 4. Build PDF
+  setSubStatus('Building PDF…');
+  let pdf;
+  try {
+    pdf = await buildPdf(cropped);
+    log('PDF built: ' + pdf.name + ' (' + (pdf.blob.size/1024).toFixed(1) + ' KB)');
+  } catch (err) {
+    showResult(false, '&#10007; PDF build failed: ' + err.message, null, null);
+    log('ERROR (pdf): ' + err.message);
+    return;
+  }
+
+  // 5. Upload
+  if (!isConfigured()) {
+    showResult(false,
+      '&#9888; Apps Script not configured. Use the download below to save the PDF.',
+      pdf.blob, pdf.name);
+    log('Upload skipped: not configured.');
+    return;
+  }
+
+  setSubStatus('Uploading to Drive…');
+  try {
+    const up = await uploadToDrive(pdf.blob, pdf.name, notes);
+    setSubStatus('');
+    showResult(true,
+      '&#10003; Uploaded as <strong>' + up.name + '</strong> &mdash; <a href="' + up.url + '" target="_blank" rel="noopener">view in Drive</a>',
+      null, null);
+    log('Uploaded: ' + up.name + ' (id ' + up.id + ')');
+  } catch (err) {
+    showResult(false,
+      '&#10007; Upload failed: ' + err.message + '<br>Use the download below as a fallback.',
+      pdf.blob, pdf.name);
+    log('ERROR (upload): ' + err.message);
+  }
+});
+
+// =============================================================================
+// BOOT
+// =============================================================================
+// ── PWA: inject manifest link (uses APPS_SCRIPT_URL already defined above) ──
+(function() {
+  if (!isConfigured()) return;   // only when deployed
+  var lnk = document.createElement('link');
+  lnk.rel  = 'manifest';
+  lnk.href = APPS_SCRIPT_URL + '?file=manifest';
+  document.head.appendChild(lnk);
+})();
+
+// ── PWA: register service worker ──────────────────────────────────────────
+if ('serviceWorker' in navigator && isConfigured()) {
+  window.addEventListener('load', function() {
+    navigator.serviceWorker.register(APPS_SCRIPT_URL + '?file=sw')
+      .then(function(r) { log('KaChing SW registered (scope: ' + r.scope + ')'); })
+      .catch(function(e) { log('SW registration failed: ' + e.message); });
+  });
+}
+
+checkReminder();
+showPane('idlePane');
+if (!isConfigured()) log('Apps Script not configured — upload will be skipped.');
+</script>
+</body>
+</html>
