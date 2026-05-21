@@ -1006,12 +1006,13 @@ function showReminder(days, forced) {
     : '&#9888; Security check overdue (' + days + ' days)';
   reminderEl.innerHTML =
     '<h2>' + heading + '</h2>' +
-    '<p>Your receipt-upload Apps Script has a publicly-callable URL. Review the execution log periodically:</p>' +
+    '<p>Your SHARED_SECRET and folder IDs are visible in your public GitHub repo, and the Apps Script endpoint is publicly callable. Review periodically:</p>' +
+    '<p><strong>First:</strong> check GRoot/ReceiptInbox in Google Drive for any receipt files you did not upload. If everything looks normal, check the execution log below.</p>' +
     '<ol>' +
       '<li>Open <a href="https://script.google.com/home/projects" target="_blank" rel="noopener">script.google.com/home/projects</a></li>' +
       '<li>Open the <strong>Receipt Uploader</strong> project</li>' +
       '<li>Click <strong>Executions</strong> in the left sidebar</li>' +
-      '<li>Scan for unexpected calls, repeated failures, or volume spikes</li>' +
+      '<li>Scan for unexpected calls, runs at odd hours, repeated failures, or volume spikes</li>' +
       '<li>If anything looks wrong: <strong>Deploy &rarr; Archive</strong> to kill the URL, then rotate the SHARED_SECRET in both files and redeploy</li>' +
     '</ol>' +
     '<button id="ackBtn">&#10003; I checked &mdash; remind me in ' + REMINDER_INTERVAL_DAYS + ' days</button>';
