@@ -1245,8 +1245,8 @@ function runCornerPicker(file) {
       if (dragIdx < 0) return;
       e.preventDefault();
       const p = eventPoint(e);
-      const edgeX = Math.round(30 * (canvas.width  / canvas.getBoundingClientRect().width  || 1));
-      const edgeY = Math.round(15 * (canvas.height / canvas.getBoundingClientRect().height || 1));
+      const edgeX = Math.round(55 * (canvas.width  / canvas.getBoundingClientRect().width  || 1));
+      const edgeY = Math.round(35 * (canvas.height / canvas.getBoundingClientRect().height || 1));
       p.x = Math.max(edgeX, Math.min(canvas.width  - edgeX, p.x));
       p.y = Math.max(edgeY, Math.min(canvas.height - edgeY, p.y));
       corners[dragIdx] = p;
